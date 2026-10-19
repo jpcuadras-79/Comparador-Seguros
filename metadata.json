@@ -1,0 +1,6 @@
+{
+  "name": "Comparador de Propuestas BN",
+  "description": "Herramienta profesional para correduría de seguros en Costa Rica: compara propuestas de seguros de automóviles en minutos asistido por Gemini AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

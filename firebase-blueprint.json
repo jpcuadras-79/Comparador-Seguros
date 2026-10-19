@@ -1,0 +1,182 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Perfil de usuario del sistema (asesor o administrador)",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "Nombre completo del asesor o administrador",
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "description": "Correo electrónico institucional",
+          "format": "email",
+          "maxLength": 160
+        },
+        "role": {
+          "type": "string",
+          "description": "Rol en la corredora",
+          "enum": ["admin", "advisor"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Estado de la cuenta",
+          "enum": ["active", "pending", "suspended"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Fecha y hora de registro ISO o timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Fecha y hora de actualización"
+        }
+      },
+      "required": ["displayName", "email", "role", "status", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Registro de autorización de rol de Administrador",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Correo del administrador",
+          "format": "email",
+          "maxLength": 160
+        },
+        "addedAt": {
+          "type": "string",
+          "description": "Fecha de designación como administrador"
+        },
+        "addedBy": {
+          "type": "string",
+          "description": "UID de quien otorgó el rol",
+          "maxLength": 128
+        }
+      },
+      "required": ["email", "addedAt"]
+    },
+    "Comparison": {
+      "title": "Comparison",
+      "description": "Registro histórico de una comparación de propuestas realizada por un asesor",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID del asesor que generó la comparación",
+          "maxLength": 128
+        },
+        "clientName": {
+          "type": "string",
+          "description": "Nombre del cliente evaluado",
+          "maxLength": 120
+        },
+        "vehicleAndUsage": {
+          "type": "string",
+          "description": "Vehículo y uso consultado",
+          "maxLength": 200
+        },
+        "maxBudgetColones": {
+          "type": "number",
+          "description": "Presupuesto máximo anual en colones"
+        },
+        "mandatoryCoverages": {
+          "type": "object",
+          "description": "Mapa de coberturas obligatorias exigidas"
+        },
+        "priorities": {
+          "type": "string",
+          "description": "Prioridades declaradas por el cliente",
+          "maxLength": 600
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Forma de pago seleccionada",
+          "maxLength": 100
+        },
+        "proposals": {
+          "type": "array",
+          "description": "Lista de propuestas y semáforos evaluados"
+        },
+        "propuestaRecomendada": {
+          "type": "string",
+          "description": "Aseguradora recomendada en borrador",
+          "maxLength": 100
+        },
+        "recomendacionPreliminar": {
+          "type": "string",
+          "description": "Texto técnico de recomendación preliminar",
+          "maxLength": 1500
+        },
+        "mensajeWhatsApp": {
+          "type": "string",
+          "description": "Mensaje generado para WhatsApp",
+          "maxLength": 1500
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Fecha de creación del registro"
+        }
+      },
+      "required": ["userId", "clientName", "maxBudgetColones", "proposals", "createdAt"]
+    },
+    "BrokerageSetting": {
+      "title": "BrokerageSetting",
+      "description": "Configuraciones globales de la corredora administradas exclusivamente por el Administrador",
+      "type": "object",
+      "properties": {
+        "brokerageName": {
+          "type": "string",
+          "description": "Nombre de la corredora de seguros",
+          "maxLength": 120
+        },
+        "licenseNumber": {
+          "type": "string",
+          "description": "Número de licencia SUGESE",
+          "maxLength": 80
+        },
+        "requireAdminApproval": {
+          "type": "boolean",
+          "description": "Si los nuevos usuarios requieren aprobación previa del administrador"
+        },
+        "disclaimerText": {
+          "type": "string",
+          "description": "Texto legal obligatorio al pie",
+          "maxLength": 500
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "UID del administrador que actualizó",
+          "maxLength": 128
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Fecha de actualización"
+        }
+      },
+      "required": ["brokerageName", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Colección de perfiles de usuarios (asesores y administradores)"
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Colección de control de acceso para administradores verificados"
+    },
+    "/comparisons/{comparisonId}": {
+      "schema": { "$ref": "#/entities/Comparison" },
+      "description": "Historial de comparaciones generadas por los asesores"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/BrokerageSetting" },
+      "description": "Configuraciones maestras de la corredora"
+    }
+  }
+}

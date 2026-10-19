@@ -1,0 +1,151 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // 1. GLOBAL SAFETY NET (DEFAULT DENY)
+    // ==========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // 2. HARDENED GLOBAL HELPERS
+    // ==========================================
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // Bootstrapped Admin verification:
+    // User email from runtime "jp.cuadras@gmail.com" is honored as initial super admin
+    function isAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'jp.cuadras@gmail.com'
+      );
+    }
+
+    // ==========================================
+    // 3. VALIDATION BLUEPRINTS
+    // ==========================================
+    function isValidUser(data) {
+      return data.keys().hasAll(['displayName', 'email', 'role', 'status', 'createdAt'])
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 120
+        && data.email is string && data.email.size() <= 160 && data.email.matches('^[^@]+@[^@]+\\.[^@]+$')
+        && (data.role == 'admin' || data.role == 'advisor')
+        && (data.status == 'active' || data.status == 'pending' || data.status == 'suspended')
+        && data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['email', 'addedAt'])
+        && data.email is string && data.email.size() <= 160 && data.email.matches('^[^@]+@[^@]+\\.[^@]+$')
+        && data.addedAt is string && data.addedAt.size() <= 64;
+    }
+
+    function isValidComparison(data) {
+      return data.keys().hasAll(['userId', 'clientName', 'maxBudgetColones', 'proposals', 'createdAt'])
+        && data.userId is string && data.userId.size() <= 128
+        && data.clientName is string && data.clientName.size() >= 2 && data.clientName.size() <= 120
+        && data.maxBudgetColones is number && data.maxBudgetColones >= 0 && data.maxBudgetColones <= 100000000
+        && data.proposals is list && data.proposals.size() > 0 && data.proposals.size() <= 5
+        && data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidSetting(data) {
+      return data.keys().hasAll(['brokerageName', 'updatedAt'])
+        && data.brokerageName is string && data.brokerageName.size() >= 2 && data.brokerageName.size() <= 120
+        && data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    // ==========================================
+    // 4. COLLECTION RULES
+    // ==========================================
+
+    // Users collection: Advisors & Admins
+    match /users/{userId} {
+      allow get: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      
+      // Registration: self-registration for advisors or administrator creating users
+      allow create: if isVerified() && isValidId(userId)
+        && isValidUser(incoming())
+        && (
+          (request.auth.uid == userId && (incoming().role == 'advisor' || isAdmin())) ||
+          isAdmin()
+        );
+
+      // Update: users can update their own display name; administrators can modify any user field
+      allow update: if isVerified() && isValidId(userId)
+        && isValidUser(incoming())
+        && (
+          isAdmin() ||
+          (
+            request.auth.uid == userId
+            && incoming().role == existing().role
+            && incoming().status == existing().status
+            && incoming().email == existing().email
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Admins registry: Only admins can manage admins
+    match /admins/{adminId} {
+      allow get: if isVerified() && isValidId(adminId) && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidId(adminId) && isValidAdmin(incoming());
+    }
+
+    // Comparisons history: Advisors manage their own, Admin can audit all
+    match /comparisons/{comparisonId} {
+      allow get: if isVerified() && isValidId(comparisonId)
+        && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow list: if isVerified()
+        && (isAdmin() || resource.data.userId == request.auth.uid);
+
+      allow create: if isVerified() && isValidId(comparisonId)
+        && isValidComparison(incoming())
+        && incoming().userId == request.auth.uid;
+
+      allow update: if isVerified() && isValidId(comparisonId)
+        && isValidComparison(incoming())
+        && (
+          isAdmin() ||
+          (
+            resource.data.userId == request.auth.uid
+            && incoming().userId == existing().userId
+            && incoming().diff(existing()).affectedKeys().hasOnly(['priorities', 'paymentMethod'])
+          )
+        );
+
+      allow delete: if isVerified() && isValidId(comparisonId)
+        && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Brokerage Global Settings
+    match /settings/{settingId} {
+      allow get, list: if isVerified() && isValidId(settingId);
+      allow create, update, delete: if isAdmin() && isValidId(settingId) && isValidSetting(incoming());
+    }
+  }
+}
